@@ -125,9 +125,6 @@ print(summarize(text, ratio=0.2))   # keep roughly the top 20% of sentences
 
 Ideas and pull requests are welcome. Fork the repo, create a branch, make your changes and open a PR. For larger changes, open an issue first to discuss what you'd like to change.
 
-## 📄 License
-
-Distributed under the MIT License. Add a `LICENSE` file to the repo to make it official.
 
 ## 👤 Author
 
