@@ -1,56 +1,53 @@
+import math
+import nltk
+import numpy as np
 import streamlit as st
+from nltk.corpus import stopwords
+from nltk.tokenize import sent_tokenize, word_tokenize, RegexpTokenizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-st.title('Text Summarization')
 
-InputText = st.text_area("Enter text to Summarize")
+@st.cache_resource
+def load_nltk():
+    for pkg in ("punkt", "punkt_tab", "stopwords"):
+        nltk.download(pkg, quiet=True)
+    return set(stopwords.words("english"))
+
+
+STOP_WORDS = load_nltk()
+tokenizer = RegexpTokenizer(r"\w+")
+
+
+def clean(sentence):
+    words = tokenizer.tokenize(sentence.lower())
+    return " ".join(w for w in words if w not in STOP_WORDS)
+
+
+def summarize(text, ratio=1 / 6):
+    sentences = sent_tokenize(text)
+    if len(sentences) < 2:
+        return text
+
+    processed = [clean(s) for s in sentences]   # same length as sentences
+    if not any(processed):
+        return text
+
+    tfidf = TfidfVectorizer().fit_transform(processed)
+    sim = cosine_similarity(tfidf)
+
+    # score = average similarity to all other sentences
+    scores = (sim.sum(axis=1) - 1) / (len(sentences) - 1)
+
+    k = max(1, math.floor(len(sentences) * ratio))
+    top = sorted(np.argsort(scores)[::-1][:k])   # keep original order
+    return " ".join(sentences[i] for i in top)
+
+
+st.title("Text Summarization")
+input_text = st.text_area("Enter text to Summarize")
+ratio = st.slider("Summary length (fraction of original)", 0.1, 0.5, 1 / 6)
 
 st.subheader("Summary")
-
-import pandas as pd
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-import re
-import math
-from nltk.tokenize import word_tokenize, sent_tokenize
-import contractions
-from nltk.tokenize import RegexpTokenizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
-import nltk
-
-nltk.download('punkt')
-nltk.download('stopwords')
-
-InputTextSentences = sent_tokenize(InputText)
-
-WordsInSentenceList = [word_tokenize(sentence.lower()) for sentence in InputTextSentences]
-
-NoStopWordsSentences = [word for sentence in WordsInSentenceList for word in sentence if word not in stopwords.words('english')]
-
-NoStopWordsSentencesJoined = " ".join(NoStopWordsSentences).split(' . ')
-
-RegexTokenizer = RegexpTokenizer(r'\w+')
-
-NoPunctuationSentences = [RegexTokenizer.tokenize(sentence) for sentence in NoStopWordsSentencesJoined]
-
-ProcessedData = [" ".join(sentence) for sentence in NoPunctuationSentences]
-
-Vectorizer = TfidfVectorizer()
-VectorizedDataMatrix = Vectorizer.fit_transform(ProcessedData)
-
-similarityMatrix = cosine_similarity(VectorizedDataMatrix)
-similarities = []
-for index, similarity in enumerate(similarityMatrix):
-    similarities.append({'similarityID': index, 'similarity': np.sum(similarity[1]) / len(similarityMatrix)})
-
-sortedSimilarities = sorted(similarities, key = lambda x: x['similarity'], reverse=True)
-
-SummaryLength = math.floor(len(InputTextSentences) / 6)
-
-summary = []
-for sentenceID in range(SummaryLength):
-    targetSentenceID = sortedSimilarities[sentenceID]['similarityID']
-    summary.append(InputTextSentences[targetSentenceID])
-
-st.write(" ".join(summary))
+if input_text.strip():
+    st.write(summarize(input_text, ratio))
